@@ -6,37 +6,35 @@ public class Simulador {
 
     public int lostClient;
     public double tempoTotal;
-    public int lastNumber;
-    public Fila fila1;
-    public Fila fila2;
+    public long lastNumber;
+    public List<Fila> filas;
     public List<Evento> escalonador;
     public int quantidadeNumerosUsados;
 
-    public Simulador(int semente, Fila fila1, Fila fila2) {
+    public Simulador(int semente, List<Fila> filas) {
         this.lastNumber = semente;
         this.tempoTotal = 0;
-        this.fila1 = fila1;
-        this.fila2 = fila2;
         this.lostClient = 0;
+        this.filas = filas;
         this.escalonador = new ArrayList<>();
         this.quantidadeNumerosUsados = 0;
     }
 
     public void escalona(Evento evento) {
         if (evento.getType() == "CHEGADA") {
-            arrival();
+            arrival(evento.getFila1());
         } else if (evento.getType() == "SAIDA") {
-            exit();
+            exit(evento.getFila1());
         } else if (evento.getType() == "PASSAGEM") {
-            transfer();
+            transfer(evento.getFila1(), evento.getFila2());
         }
     }
 
-    public void adicionaEscalonador(double min, double max, String tipo) {
+    public void adicionaEscalonador(double min, double max, String tipo, Fila fila1, Fila fila2) {
         double randomChegada = (max - min) * nextRandom() + min;
         double fullTimeEvent = tempoTotal + randomChegada;
 
-        Evento evento = new Evento(tipo, fullTimeEvent);
+        Evento evento = new Evento(tipo, fullTimeEvent, fila1, fila2);
 
         escalonador.add(evento);
 
@@ -51,9 +49,9 @@ public class Simulador {
 
             Evento proximoEvento = escalonador.remove(0);
 
-            this.fila1.times[fila1.filaSize] = calculaTempo(fila1, proximoEvento);
-
-            this.fila2.times[fila2.filaSize] = calculaTempo(fila2, proximoEvento);
+            for (Fila fila : filas) {
+                fila.times[fila.filaSize] = calculaTempo(fila, proximoEvento);
+            }
 
             this.tempoTotal = proximoEvento.getTime();
 
@@ -68,52 +66,93 @@ public class Simulador {
         return tempo;
     }
 
-    public void arrival() {
-        if (this.fila1.filaSize < this.fila1.capacidade) {
-            this.fila1.filaSize++;
+    public void addDestinationQueue(String identifier, Fila fila) {
+        if (identifier.equals("exit")) {
+            this.adicionaEscalonador(fila.minService, fila.maxService, "SAIDA", fila, null);
+        } else {
+            Fila filaDestino = null;
 
-            if (this.fila1.filaSize <= this.fila1.servidores) {
-                this.adicionaEscalonador(this.fila1.minService, this.fila1.maxService, "PASSAGEM");
+            for (Fila filaNomes : filas) {
+                if (filaNomes.filaIdentifier.equals(identifier)) {
+                    filaDestino = filaNomes;
+                }
+            }
+
+            this.adicionaEscalonador(fila.minService, fila.maxService, "PASSAGEM", fila, filaDestino);
+        }
+    }
+
+    public void arrival(Fila fila) {
+        if (fila.filaSize < fila.capacidade) {
+            fila.filaSize++;
+
+            if (fila.filaSize <= fila.servidores) {
+                String identifier = filaDestino(fila);
+                this.addDestinationQueue(identifier, fila);
             }
         } else {
-            this.fila1.lostClient++;
+            fila.lostClient++;
         }
 
-        this.adicionaEscalonador(this.fila1.minArrival, this.fila1.maxArrival, "CHEGADA");
+        this.adicionaEscalonador(fila.minArrival, fila.maxArrival, "CHEGADA", fila, null);
     }
 
-    public void exit() {
-        fila2.filaSize--;
+    public void exit(Fila fila) {
+        fila.filaSize--;
 
-        if (fila2.filaSize >= fila2.servidores) {
-            this.adicionaEscalonador(this.fila2.minService, this.fila2.maxService, "SAIDA");
+        if (fila.filaSize >= fila.servidores) {
+            String identifier = filaDestino(fila);
+            this.addDestinationQueue(identifier, fila);       
         }
     }
 
-    public void transfer() {
-        this.fila1.filaSize--;
+    public void transfer(Fila fila1, Fila fila2) {
+        fila1.filaSize--;
 
-        if (this.fila1.filaSize >= this.fila1.servidores) {
-            this.adicionaEscalonador(this.fila1.minService, this.fila1.maxService, "PASSAGEM");
+        if (fila1.filaSize >= fila1.servidores) {
+            String identifier = filaDestino(fila1);
+            this.addDestinationQueue(identifier, fila1);
         }
 
-        if (this.fila2.filaSize < this.fila2.capacidade) {
+        if (fila2.filaSize < fila2.capacidade) {
             fila2.filaSize++;
 
             if (fila2.filaSize <= fila2.servidores) {
-                this.adicionaEscalonador(this.fila2.minService, this.fila2.maxService, "SAIDA");
+                String identifier = filaDestino(fila2);
+                this.addDestinationQueue(identifier, fila2);
             }
         } else {
             fila2.lostClient++;
         }
     }
 
-    public double nextRandom() {
-        int a = 123;
-        int c = 6;
-        int M = 124212;
+    public String filaDestino(Fila fila) {
+        double sum = 0.0;
+        double prob = nextRandom();
+        String filaDestino = "";
 
-        int random = (a * lastNumber + c) % M;
+        for (String network : fila.network) {
+            String[] networkSplit = network.split("-");
+
+            if (prob < sum) {
+                break;
+            } else {
+                sum += Double.parseDouble(networkSplit[1]);
+                filaDestino = networkSplit[0];
+            }
+        }
+
+        quantidadeNumerosUsados++;
+
+        return filaDestino;
+    }
+
+    public double nextRandom() {
+        int a = 1664525;
+        int c = 1013904223;
+        long M = 4294967296L;
+
+        long random = (a * lastNumber + c) % M;
         lastNumber = random;
         double normalized = (double) random / M;
         return normalized;

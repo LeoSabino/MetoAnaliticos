@@ -1,4 +1,8 @@
+import java.util.List;
+
 public class Fila {
+    public String filaIdentifier;
+
     public int servidores;
     public int capacidade;
     public int filaSize;
@@ -9,19 +13,24 @@ public class Fila {
     public double minService;
     public double maxService;
 
+    List<String> network;
+
     public Double[] times;
 
-    public Fila(int servidores, int capacidade, double minArrival, double maxArrival, double minService,
-            double maxService) {
+    public Fila(String filaIdentifier, int servidores, int capacidade, double minArrival, double maxArrival,
+            double minService,
+            double maxService, List<String> network) {
+        this.filaIdentifier = filaIdentifier;
         this.servidores = servidores;
         this.capacidade = capacidade;
         this.filaSize = 0;
+        this.lostClient = 0;
         this.minArrival = minArrival;
         this.maxArrival = maxArrival;
         this.minService = minService;
         this.maxService = maxService;
         this.times = new Double[capacidade + 1];
-        this.lostClient = 0;
+        this.network = network;
 
         this.initializationArray(times);
     }
